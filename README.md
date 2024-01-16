@@ -5,7 +5,10 @@ I decided to not sleep and instead try to make this work since it seemed easy oo
 - [x] Rectangular -> parallelogram (arb. lin. transform(rectangle)) 
   - [ ] Still have to fix cropping errors (the image being optimized is a cropped version of the original, depending on the transform)
   - [ ] Still have to fix the fact that the image is not centered in the parallelogram
-- [ ] Make gen_hooks create three (3) axes instead of two (2), and then project them using our favorite, Euler angles, into a 2D plane. Then optimize as usual. 
+- [x] Make gen_hooks create three (3) axes instead of two (2), and then project them using our favorite, Euler angles, into a 2D plane. Then optimize as usual. 
+  - [ ] extremely poor performance, not sure why. 
+  - [ ] also not cropped properly, but that'll be fixed when the above is fixed.
+  - [ ] yet to do euler angles
 
 
 
