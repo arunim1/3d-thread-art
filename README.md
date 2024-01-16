@@ -1,3 +1,16 @@
+# 3D Computational Thread Art
+
+I decided to not sleep and instead try to make this work since it seemed easy oops. 
+- [x] Circular -> rectangular boundary 
+- [x] Rectangular -> parallelogram (arb. lin. transform(rectangle)) 
+  - [ ] Still have to fix cropping errors (the image being optimized is a cropped version of the original, depending on the transform)
+  - [ ] Still have to fix the fact that the image is not centered in the parallelogram
+- [ ] Make gen_hooks create three (3) axes instead of two (2), and then project them using our favorite, Euler angles, into a 2D plane. Then optimize as usual. 
+
+
+
+Below is the original README.md file 
+
 # Computational Thread Art
 
 ![Thread-art David Bowie: computer output](https://miro.medium.com/max/612/1*qQECZMJGxPEqIZ64jAI33Q.jpeg)
