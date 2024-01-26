@@ -1,14 +1,16 @@
 # 3D Computational Thread Art
 
+I accidentally spent a night on this, realized I was making a silly error, and then fixed it about a week later. Currently very much in a proof-of-concept stage, but I'll fix it and add to it in March, probably. 
+
 I decided to not sleep and instead try to make this work since it seemed easy oops. 
 - [x] Circular -> rectangular boundary 
-- [x] Rectangular -> parallelogram (arb. lin. transform(rectangle)) 
-  - [ ] Still have to fix cropping errors (the image being optimized is a cropped version of the original, depending on the transform)
-  - [ ] Still have to fix the fact that the image is not centered in the parallelogram
+- [x] Rectangular -> parallelogram (arbitrary lin transform(rectangle)) 
 - [x] Make gen_hooks create three (3) axes instead of two (2), and then project them using our favorite, Euler angles, into a 2D plane. Then optimize as usual. 
   - [x] extremely poor performance, not sure why. 
-  - [ ] also not cropped properly, but that'll be fixed when the above is fixed.
-  - [ ] yet to do euler angles
+  - [ ] crop and center image
+  - [ ] random transform -> euler angles
+  - [ ] translate output in terms of hooks such that I can do a 3D plot
+  - [ ] 2-in-1 extension
 
 I realized the silly error I was making, now it works! See example image below, you can actually tell what it is!
 
