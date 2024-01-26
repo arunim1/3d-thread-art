@@ -6,10 +6,13 @@ I decided to not sleep and instead try to make this work since it seemed easy oo
   - [ ] Still have to fix cropping errors (the image being optimized is a cropped version of the original, depending on the transform)
   - [ ] Still have to fix the fact that the image is not centered in the parallelogram
 - [x] Make gen_hooks create three (3) axes instead of two (2), and then project them using our favorite, Euler angles, into a 2D plane. Then optimize as usual. 
-  - [ ] extremely poor performance, not sure why. 
+  - [x] extremely poor performance, not sure why. 
   - [ ] also not cropped properly, but that'll be fixed when the above is fixed.
   - [ ] yet to do euler angles
-m
+
+I realized the silly error I was making, now it works! See example image below, you can actually tell what it is!
+
+![Tiger in 3D Thread Art Prism](https://github.com/arunim1/3d-thread-art/blob/master/tiger_prism_v2.jpg?raw=true)
 
 
 Below is the original README.md file 
