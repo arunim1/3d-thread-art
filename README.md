@@ -11,6 +11,7 @@ I decided to not sleep and instead try to make this work since it seemed easy oo
   - [ ] random transform -> euler angles
   - [ ] translate output in terms of hooks such that I can do a 3D plot
   - [ ] 2-in-1 extension
+  - [ ] Test with face-only restriction (for feasible construction) + structures which most use the see-through nature of the 3D thread art. eg. octahedron 
 
 I realized the silly error I was making, now it works! See example image below, you can actually tell what it is!
 
