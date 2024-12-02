@@ -1,0 +1,3 @@
+- later figure out depth. 
+
+- given that it aims to fill in a pure black square, and steers clear of a pure white square, I'm pretty sure it's at least aiming to do the right thing. I suspect that it is simply not able to find lines which are better than completely avoiding the image, so it seems to be an issue of placing the image and using images / weightings which incentivize every line to go through the image in some way. 

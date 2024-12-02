@@ -22,6 +22,9 @@ from copy import deepcopy
 
 VOXELS_PER_INCH = 400
 RESOLUTION = 1000
+global TVD
+# TVD = None
+testing = False
 
 # %% Hook Generation and Projection
 def generate_hooks_prism(**kwargs):
@@ -85,7 +88,8 @@ def generate_hooks_prism(**kwargs):
             hooks = np.vstack((hooks, point1))
             hooks = np.vstack((hooks, point2))
 
-    # Remove duplicate hooks by rounding and using np.unique, removed this because it reorders the hooks, which we don't want, and adjusted so we shouldn't have duplicate hooks at the corners
+    # Removed this because it reorders the hooks, which we don't want, and adjusted so we shouldn't have duplicate hooks at the corners
+    # Remove duplicate hooks by rounding and using np.unique
     # centers = np.unique(np.round(centers, decimals=8), axis=0)
 
     return np.array(hooks)
@@ -152,13 +156,15 @@ def perspective_projection(points_3d, camera_position, camera_target, up_vector,
     
     return points_2d
 
-def hooks_to_2d_image(hooks, camera_position):
+def hooks_to_2d_image(hooks, camera_position, points_3d=None):
     """
     Convert hooks to a 2D image, as seen from a given angle.
     """
     assert len(hooks) >= 3
     assert hooks.shape[1] == 3
     assert any(camera_position[i] < np.min(hooks[:, i]) or camera_position[i] > np.max(hooks[:, i]) for i in range(3))
+    if points_3d is not None:
+        assert points_3d.shape[1] == 3
     
     camera_target = np.mean(hooks, axis=0) # center of the hooks
     up_vector = np.array([0, 0, 1])
@@ -166,14 +172,20 @@ def hooks_to_2d_image(hooks, camera_position):
     aspect_ratio = 4/3
     near = 0.1
     far = 1000
-    projected_hooks = perspective_projection(hooks, camera_position, camera_target, up_vector, fov_degrees, aspect_ratio, near, far)
+
+    if points_3d is not None:
+        all_points = np.vstack((hooks, points_3d))
+    else:
+        all_points = hooks
+
+    projected_points = perspective_projection(all_points, camera_position, camera_target, up_vector, fov_degrees, aspect_ratio, near, far)
 
     # normalize 
-    projected_hooks = (projected_hooks - projected_hooks.min(axis=0))
-    max_x, max_y = projected_hooks.max(axis=0)
-    projected_hooks = projected_hooks / max(max_x, max_y)
+    projected_points = (projected_points - projected_points.min(axis=0))
+    max_x, max_y = projected_points.max(axis=0)
+    projected_points = projected_points / max(max_x, max_y)
 
-    return projected_hooks
+    return projected_points
 
 def plot_hooks_2d(hooks):
     """
@@ -186,20 +198,19 @@ def plot_hooks_2d(hooks):
     plt.scatter(x, y, color=colors, s=[1]*num_hooks, alpha=alphas)
     plt.show()
 
-plot_hooks_2d(hooks_to_2d_image(generate_hooks_prism(), np.array([20, 15, 15]) * VOXELS_PER_INCH))
-
-def pixelate(points_3d, camera_position, plot=False):
+def pixelate(hooks, camera_position, plot=False, points_3d=None):
     """
     Project and pixelate the hooks with improved visualization
     
     Args:
-        points_3d: 3D points to project
+        hooks: 3D coordinates of the hooks
         camera_position: Position of the camera
         resolution: Base resolution for the output image
+        points_3d: additional 3D points to project
     """
     resolution = RESOLUTION
     # Project points to 2D
-    projected_hooks = hooks_to_2d_image(points_3d, camera_position)
+    projected_hooks = hooks_to_2d_image(hooks, camera_position, points_3d)
     
     # Calculate bounds while maintaining aspect ratio
     max_x = projected_hooks[:, 0].max()
@@ -253,9 +264,12 @@ def pixelate(points_3d, camera_position, plot=False):
     
     return pixels
 
-hooks = generate_hooks_prism()
-camera_pos = np.array([20, 15, 15]) * VOXELS_PER_INCH
-pixelate(hooks, camera_pos, plot=True)
+if testing:
+    plot_hooks_2d(hooks_to_2d_image(generate_hooks_prism(), np.array([20, 15, 15]) * VOXELS_PER_INCH))
+
+    hooks = generate_hooks_prism()
+    camera_pos = np.array([20, 15, 15]) * VOXELS_PER_INCH
+    pixelate(hooks, camera_pos, plot=True)
 
 # %% Build through_voxels_dict
 def through_voxels(p0, p1):
@@ -286,18 +300,19 @@ def build_through_voxels_dict(hooks):
 
     return d
 
-through_voxels_dict = build_through_voxels_dict(generate_hooks_prism())
+if testing:
+    TVD = build_through_voxels_dict(generate_hooks_prism())
 
 # %% Fitness function
 def place_image(hooks, position, image):
-    pixels_2d = pixelate(hooks, position)
+    hook_pixels_2d = pixelate(hooks, position)
 
-    non_white_indices = np.where(pixels_2d < 0.9)
+    non_white_indices = np.where(hook_pixels_2d < 0.9)
     non_white_coords = np.column_stack(non_white_indices)
     
     points_center = np.mean(non_white_coords, axis=0)
 
-    output_size = pixels_2d.shape[1], pixels_2d.shape[0]
+    output_size = hook_pixels_2d.shape[1], hook_pixels_2d.shape[0]
     tmp_arr = np.array(image)
     x_ratio = output_size[0] / tmp_arr.shape[0]
     y_ratio = output_size[1] / tmp_arr.shape[1]
@@ -315,27 +330,25 @@ def place_image(hooks, position, image):
     translation = points_center - image_center
     
     # Apply translation to image
-    translated_image = np.zeros_like(pixels_2d)
+    translated_image = np.zeros_like(hook_pixels_2d)
     y_start = max(0, int(translation[0]))
-    y_end = min(pixels_2d.shape[0], int(translation[0]) + image.shape[0])
+    y_end = min(hook_pixels_2d.shape[0], int(translation[0]) + image.shape[0])
     x_start = max(0, int(translation[1]))
-    x_end = min(pixels_2d.shape[1], int(translation[1]) + image.shape[1])
+    x_end = min(hook_pixels_2d.shape[1], int(translation[1]) + image.shape[1])
 
     bounds = (y_start, y_end, x_start, x_end)
     
     if image.ndim == 3:
-        translated_image = np.zeros((*pixels_2d.shape, 3))
+        translated_image = np.zeros((*hook_pixels_2d.shape, 3))
         translated_image[y_start:y_end, x_start:x_end, :] = image[:y_end-y_start, :x_end-x_start, :]
         image = np.mean(translated_image, axis=2)  # Convert to grayscale
     else:
         translated_image[y_start:y_end, x_start:x_end] = image[:y_end-y_start, :x_end-x_start]
         image = translated_image
 
-    assert image.shape == pixels_2d.shape
+    assert image.shape == hook_pixels_2d.shape
 
     return image, bounds
-
-
 
 def get_fitness_function(hooks, positions, images):
     formatted_images = []
@@ -346,22 +359,28 @@ def get_fitness_function(hooks, positions, images):
         formatted_images.append((image, bounds)) # where bounds is the bounds of the actual image. 
 
 
-    def fitness_function(points_3d):
+    def fitness_function(current_images, points_3d):
         loss = 0
-        for tup, position in zip(formatted_images, positions):
+        temp_images = []
+        # points_3d = np.vstack((hooks, points_3d))
+
+        for tup, position, current_image in zip(formatted_images, positions, current_images):
             image, bounds = tup
-            pixels_2d = pixelate(points_3d, position)
-            # assert pixels_2d.shape == image.shape
-            
-            loss += np.abs(pixels_2d[bounds[0]:bounds[1], bounds[2]:bounds[3]] - image[bounds[0]:bounds[1], bounds[2]:bounds[3]]).mean()
-        return loss
+            pixels_2d = pixelate(hooks, position, points_3d=points_3d)
+
+            assert current_image.shape == pixels_2d.shape
+            temp_image = np.minimum(current_image, pixels_2d)
+
+            loss += np.abs(temp_image[bounds[0]:bounds[1], bounds[2]:bounds[3]] - image[bounds[0]:bounds[1], bounds[2]:bounds[3]]).mean()
+            temp_images.append(temp_image)
+
+        return loss, temp_images
 
     return fitness_function
 
-exfxn = get_fitness_function(generate_hooks_prism(), [np.array([20, 15, 15]) * VOXELS_PER_INCH], [Image.open("example_images/nike.png")])
-
-# test
-print(exfxn(generate_hooks_prism()))
+if testing:
+    exfxn = get_fitness_function(generate_hooks_prism(), [np.array([20, 15, 15]) * VOXELS_PER_INCH], [Image.open("example_images/nike.png")])
+    print(exfxn(generate_hooks_prism()))
 
 # %% Optimization
 def optimize(hooks, color, positions, images, through_voxels_dict, n_lines=10):
@@ -379,6 +398,8 @@ def optimize(hooks, color, positions, images, through_voxels_dict, n_lines=10):
     failed = set()
     lines = set()
 
+    losses = []
+
     for i in tqdm(range(n_lines), desc="Optimizing"):
         prev_hook = all_hooks[-1]
         if prev_hook % 2 == 0:
@@ -390,9 +411,11 @@ def optimize(hooks, color, positions, images, through_voxels_dict, n_lines=10):
         
         all_hooks.append(current_hook)
         possible_hooks.remove(current_hook)
-
         best_loss = np.inf
-        losses = []
+        best_images = None
+        # this is probably inefficient / unnecessary given that temp_images are computed. 
+        current_images = [pixelate(hooks, position, points_3d=all_through_voxels) for position in positions]
+        # print([image.shape for image in current_images])
 
         # randomly select 1/4 of the possible hooks
         possible_hooks = np.random.choice(possible_hooks, len(possible_hooks)//8, replace=False)
@@ -401,91 +424,111 @@ def optimize(hooks, color, positions, images, through_voxels_dict, n_lines=10):
         for possible_hook in possible_hooks:
             sortd = tuple(sorted((current_hook, possible_hook)))
 
+
             if sortd not in lines and sortd not in failed:
 
                 through_voxels = through_voxels_dict[sortd]
-                temp_voxels = np.concatenate([all_through_voxels, through_voxels])
-
+                # temp_voxels = np.concatenate([all_through_voxels, through_voxels])
+                
                 try:
-                    loss = fitness_function(temp_voxels) 
+                    loss, temp_images = fitness_function(current_images, through_voxels) 
                     n_successful += 1
 
                     if loss < best_loss:
                         best_loss = loss
+                        # best_images = temp_images
                         new_hook = possible_hook
                 except:
                     failed.add(sortd)
-        
+
+        if best_loss == np.inf:
+            print("Failed to find a line")
+            break
+        # current_images = best_images
         losses.append(best_loss)
         new_sortd = tuple(sorted((current_hook, new_hook)))
         lines.add(new_sortd)
         # update the current hook
         all_hooks.append(new_hook)
-        all_through_voxels = np.concatenate([all_through_voxels, through_voxels_dict[new_sortd]])
+        all_through_voxels = np.vstack((all_through_voxels, through_voxels_dict[new_sortd]))
 
-    all_through_voxels = np.unique(all_through_voxels, axis=0)
+        all_through_voxels = np.unique(all_through_voxels, axis=0)
 
     print("Number of successful lines: ", n_successful)
     print("Number of failed lines: ", len(failed))
     print("Failed lines: ", failed)
 
-    # pixelate the voxels
-    pixels = pixelate(all_through_voxels, np.array([20, 15, 15]) * VOXELS_PER_INCH)
-
-    plt.figure(figsize=(10, 10))
-    plt.imshow(pixels, cmap='gray', origin='lower', interpolation='nearest')
-    plt.axis('equal')
-    plt.tight_layout()
-    plt.show()
-
     return all_hooks, all_through_voxels, losses
 
-# test
-output = optimize(generate_hooks_prism(), "black", [np.array([20, 15, 15]) * VOXELS_PER_INCH], [Image.open("example_images/nike.png")], through_voxels_dict, n_lines=20)
+if testing:
+    output = optimize(generate_hooks_prism(), "black", [np.array([20, 15, 15]) * VOXELS_PER_INCH], [Image.open("example_images/nike.png")], TVD, n_lines=20)
 
 # %%
-pixels = pixelate(output[1], np.array([20, 15, 15]) * VOXELS_PER_INCH)
-hooks = generate_hooks_prism()
-image = Image.open("example_images/nike.png")
+# pixels = pixelate(output[1], np.array([20, 15, 15]) * VOXELS_PER_INCH)
+# hooks = generate_hooks_prism()
+# image = Image.open("example_images/nike.png")
 
-image, bounds = place_image(hooks, np.array([20, 15, 15]) * VOXELS_PER_INCH, image)
+# image, bounds = place_image(hooks, np.array([20, 15, 15]) * VOXELS_PER_INCH, image)
 
-plt.figure(figsize=(10, 10))
-plt.imshow(pixels, cmap='gray', origin='lower', interpolation='nearest')
-plt.imshow(image, cmap='gray', origin='lower', interpolation='nearest', alpha=0.5)
+# plt.figure(figsize=(10, 10))
+# plt.imshow(pixels, cmap='gray', origin='lower', interpolation='nearest')
+# plt.imshow(image, cmap='gray', origin='lower', interpolation='nearest', alpha=0.5)
 
-plt.axis('equal')
-plt.tight_layout()
-plt.show()
+# plt.axis('equal')
+# plt.tight_layout()
+# plt.show()
 
-losses = output[2]
+# losses = output[2]
+# print(losses)
 
-plt.figure(figsize=(10, 6))
-plt.plot(losses)
-plt.show()
+# plt.figure(figsize=(10, 6))
+# plt.plot(losses)
+# plt.show()
 
 # %%
-def main(hooks, colors, positions, images):
+def main(hooks, colors, positions, images, n_lines=10):
     assert len(colors) == 1 # for now, as depth buffer is not implemented.
     assert len(positions) == len(images) # need to optimize each image from a different angle.
     assert all(len(position) == 3 for position in positions)
 
     assert len(hooks) >= 3
 
-    n_lines = len(hooks) * 5
+    global TVD
     
+    if TVD is None:
+        TVD = build_through_voxels_dict(hooks)
+
     # actually optimize here across all angles and images
-    through_voxels_dict = build_through_voxels_dict(hooks)
+    output = optimize(hooks, colors[0], positions, images, TVD, n_lines)
 
-    fitness_function = get_fitness_function(hooks, positions, images)
+    # pixelate the voxels
+    for position, image in zip(positions, images):
+        pixels = pixelate(hooks, position * VOXELS_PER_INCH, points_3d=output[1])
 
-    optimize(hooks, colors[0], positions, images, through_voxels_dict, n_lines)
+        image, bounds = place_image(hooks, position, image)
+
+        plt.figure(figsize=(10, 10))
+        plt.imshow(pixels, cmap='gray', origin='lower', interpolation='nearest')
+        plt.imshow(image, cmap='gray', origin='lower', interpolation='nearest', alpha=0.5)
+
+        plt.axis('equal')
+        plt.tight_layout()
+        plt.show()
+
+    losses = output[2]
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(losses)
+    plt.show()
+
 
 if __name__ == "__main__":
     hooks = generate_hooks_prism()
     colors = ["black"]
 
-    positions = [np.array([4, 4, 4]) * VOXELS_PER_INCH, np.array([-4, 4, 4]) * VOXELS_PER_INCH]
-    images = [Image.open("example_images/bowie_heroes/bowie_monochrome.jpg"), Image.open("example_images/butterfly/butterfly.png")]
+    positions = [np.array([25, 20, 15]) * VOXELS_PER_INCH]
+    images = [Image.open("example_images/wht sq.png")]
 
-    main(hooks, colors, positions, images)
+    main(hooks, colors, positions, images, n_lines=50)
+
+# %%
